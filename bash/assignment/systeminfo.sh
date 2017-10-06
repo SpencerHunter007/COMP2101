@@ -10,9 +10,9 @@ function helpmsg {
   cat <<EOF
   Usage: $0 [-h | --help] [output option...]
   output option can be one or more of the following:
-  -o | --osinfo
-  -c | --cpuinfo
-  -n | --namesinfo
+  - | --
+  - | --
+  - | --
 EOF
 }
 
@@ -27,15 +27,21 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help)
       helpmsg
+      rundefault="no"
+      ;;
+    -n|--netinfo)
+      netinfo="yes"
+      rundefault="no"
+      ;;
+    -i|--ipinfo)
+      ipinfo="yes"
+      rundefault="no"
       ;;
     -o|--osinfo)
-      osinfowanted="yes"
+      osinfo="yes"
       rundefault="no"
       ;;
     -c|--cpuinfo)
-
-      ;;
-    -n|--namesinfo)
 
       ;;
     *)
@@ -47,14 +53,64 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-# Gather the data into variables, using arrays where helpful.
 
-if [[ "$rundefault" = "yes" -o "" ]]; then
-  osinfo="$(grep PRETTY /etc/os-release | sed -e 's/.*=//' -e 's/\"//g')"
+# System and domain name
+if [[ "$rundefault" = "yes" || "$netinfo" = "yes" ]]; then
+  myhostname="$(hostname)"
+  mydomainname="$(hostname -d)"
+  myfqdn="$(hostname -f)"
+
+cat <<EOF
+--- Net Info ---
+  Hostname: $myhostname
+  Domain: $mydomainname
+  FQDN: $myfqdn
+
+EOF
 fi
 
-# Create the output using the gathered data and command line options.
+# IP Info
+if [[ "$rundefault" = "yes" || "$ipinfo" = "yes" ]]; then
+echo "--- IP Info ---"
+  ## Generate arrays
+  intnameary=(`ip -o link show | awk -F': ' '{print $2}'`)
+  intip4ary=()
+  intip6ary=()
+  #intdgary=()
 
-# Display the output.
+  numints=${#intnameary[@]}
+  intindex=0
 
-# Do any cleanup of temporary files if needed.
+  ## Populating arrays
+  while [ $intindex -lt $numints ]; do
+    #intname=(${intnameary[$intindex]})
+    intip4ary=("${intip4ary[@]}" "$(ip addr show ${intnameary[$intindex]} | grep -w "inet" | awk '{print $2}' | cut -d '/' -f 1)")
+    intip6ary=("${intip6ary[@]}" "$(ip addr show ${intnameary[$intindex]} | grep -w "inet6" | awk '{print $2}' | cut -d '/' -f 1)")
+    #intdgary=("${intdgary[@]}" "$(ip route | grep via | grep ${intnameary[$intindex]} | awk '{print $3}')")
+
+    intnameout=${intnameary[$intindex]}
+    intip4out=${intip4ary[$intindex]}
+    intip6out=${intip6ary[$intindex]}
+
+cat <<EOF
+  Interface: $intnameout
+    IPv4: $intip4out
+    IPv6: $intip6out
+EOF
+    intindex+=1
+  done
+echo ""
+fi
+
+# OS name and version
+if [[ "$rundefault" = "yes" || "$osinfo" = "yes" ]]; then
+  osinformation="$(grep PRETTY /etc/os-release | sed -e 's/.*=//' -e 's/\"//g')"
+
+cat <<EOF
+--- OS Info ---
+  OS Info: $osinformation
+
+EOF
+fi
+
+# Cleanup temporary files
